@@ -1,0 +1,1266 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Warehouse OCR Pipeline V7</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap");
+      :root {
+        --bg: #05070c;
+        --bg2: #0a0e17;
+        --bg3: #10151f;
+        --s1: #151c2a;
+        --s2: #1b2436;
+        --s3: #222e44;
+        --b1: #283654;
+        --b2: #344870;
+        --t1: #e8edf5;
+        --t2: #9aa8c2;
+        --t3: #5e6e88;
+        --ac: #3b82f6;
+        --ac2: #60a5fa;
+        --ac3: #1d4ed8;
+        --g: #22c55e;
+        --g2: #16a34a;
+        --gbg: rgba(34, 197, 94, 0.07);
+        --y: #eab308;
+        --r: #ef4444;
+        --rbg: rgba(239, 68, 68, 0.07);
+        --cy: #06b6d4;
+        --pu: #a855f7;
+        --or: #f97316;
+        --rd: 10px;
+        --rd2: 14px;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      body {
+        font-family: "Inter", sans-serif;
+        background: var(--bg);
+        color: var(--t1);
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* ═══ APP SHELL ═══ */
+      .app-shell {
+        display: grid;
+        grid-template-columns: 310px 1fr;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* ═══════════════════ SIDEBAR ═══════════════════ */
+      .sidebar {
+        background: var(--bg2);
+        border-right: 1px solid var(--b1);
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        overflow-x: hidden;
+        height: 100vh;
+      }
+      .sidebar::-webkit-scrollbar { width: 3px; }
+      .sidebar::-webkit-scrollbar-thumb { background: var(--b1); border-radius: 2px; }
+
+      /* Brand */
+      .sb-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px 14px;
+        border-bottom: 1px solid var(--b1);
+        flex-shrink: 0;
+      }
+      .sb-logo {
+        width: 34px; height: 34px;
+        background: linear-gradient(135deg, var(--ac3), var(--ac));
+        border-radius: 9px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 16px; flex-shrink: 0;
+      }
+      .sb-name { font-size: 13px; font-weight: 700; line-height: 1.3; }
+      .sb-ver  { font-size: 9px; color: var(--t3); font-family: "JetBrains Mono", monospace; }
+
+      /* Pill badge */
+      .sb-pill {
+        margin: 10px 14px 0;
+        display: inline-flex; align-items: center; gap: 6px;
+        background: var(--s1); border: 1px solid var(--b1);
+        padding: 4px 10px; border-radius: 20px;
+        font-size: 9px; color: var(--ac2); font-weight: 500; letter-spacing: 0.4px;
+      }
+      .sb-pill .dot {
+        width: 5px; height: 5px;
+        background: var(--g); border-radius: 50%;
+        animation: blink 2s infinite;
+      }
+      @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+      /* Section wrapper */
+      .sb-sec {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--b1);
+        flex-shrink: 0;
+      }
+      .sb-sec-lbl {
+        font-size: 9px; color: var(--t3);
+        text-transform: uppercase; letter-spacing: 0.9px;
+        font-weight: 600; margin-bottom: 9px;
+      }
+
+      /* Compact drop zone */
+      .drop-mini {
+        border: 2px dashed var(--b2);
+        border-radius: var(--rd);
+        padding: 13px 11px;
+        cursor: pointer;
+        transition: all 0.25s;
+        display: flex; align-items: center; gap: 10px;
+      }
+      .drop-mini:hover, .drop-mini.dragging {
+        border-color: var(--ac);
+        background: rgba(59,130,246,0.04);
+      }
+      .drop-mini-ico {
+        width: 34px; height: 34px;
+        background: linear-gradient(135deg, var(--ac3), var(--ac));
+        border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+      }
+      .drop-mini-ico svg { width: 15px; height: 15px; stroke: #fff; fill: none; stroke-width: 2; }
+      .drop-mini-txt .dt { font-size: 12px; font-weight: 600; }
+      .drop-mini-txt .ds { font-size: 10px; color: var(--t3); margin-top: 2px; }
+
+      input[type="file"] { display: none; }
+
+      /* File preview */
+      .fprev {
+        display: none; align-items: center; gap: 8px;
+        background: var(--s1); border: 1px solid var(--b1);
+        border-radius: 8px; padding: 8px 10px; margin-top: 8px;
+      }
+      .fprev.show { display: flex; }
+      .fprev-ico {
+        width: 26px; height: 26px;
+        background: var(--s3); border-radius: 7px;
+        display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      }
+      .fprev-ico svg { width: 12px; height: 12px; stroke: var(--ac2); fill: none; stroke-width: 2; }
+      .fprev-info { flex: 1; min-width: 0; }
+      .fprev-info .name { font-weight: 600; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .fprev-info .size { color: var(--t3); font-size: 9px; margin-top: 1px; }
+      .fprev-rm { background: none; border: none; color: var(--t3); cursor: pointer; padding: 4px; border-radius: 4px; }
+      .fprev-rm:hover { background: var(--rbg); color: var(--r); }
+
+      /* 2-col settings */
+      .set-grid-2 {
+        display: grid; grid-template-columns: 1fr 1fr;
+        gap: 7px; margin-top: 9px;
+      }
+      .set-group label {
+        display: block; font-size: 9px; color: var(--t3);
+        font-weight: 600; margin-bottom: 3px;
+        text-transform: uppercase; letter-spacing: 0.7px;
+      }
+      .set-group select, .set-group input[type="number"] {
+        width: 100%; padding: 6px 9px;
+        background: var(--bg); border: 1px solid var(--b1);
+        border-radius: 7px; color: var(--t1);
+        font-family: inherit; font-size: 11px;
+        cursor: pointer; transition: border-color 0.2s; appearance: none;
+      }
+      .set-group select {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='9' fill='%235e6e88'%3E%3Cpath d='M4.5 6L0 2h9z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 8px center;
+      }
+      .set-group select:focus, .set-group input:focus {
+        outline: none; border-color: var(--ac);
+        box-shadow: 0 0 0 2px rgba(59,130,246,0.12);
+      }
+
+      /* Start button */
+      .btn-start {
+        display: none; width: 100%; margin-top: 9px;
+        padding: 10px; border: none; border-radius: 9px;
+        background: linear-gradient(135deg, var(--ac3), var(--ac));
+        color: #fff; font-family: inherit; font-size: 13px; font-weight: 600;
+        cursor: pointer; transition: all 0.25s;
+        box-shadow: 0 3px 10px rgba(59,130,246,0.28);
+      }
+      .btn-start.show { display: block; }
+      .btn-start:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(59,130,246,0.38); }
+      .btn-start:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+      /* Vertical steps */
+      .prog-section { display: none; }
+      .prog-section.show { display: block; }
+
+      .steps-vert { display: flex; flex-direction: column; gap: 5px; }
+      .step-v {
+        display: flex; align-items: center; gap: 9px;
+        padding: 8px 9px; border-radius: 8px;
+        background: var(--bg); border: 1px solid transparent;
+        transition: all 0.3s;
+      }
+      .step-v.active { border-color: var(--ac); background: rgba(59,130,246,0.06); }
+      .step-v.done   { border-color: var(--g);  background: var(--gbg); }
+      .step-v-num {
+        width: 20px; height: 20px; border-radius: 50%;
+        background: var(--s2); border: 1px solid var(--b1);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 9px; font-weight: 700; font-family: "JetBrains Mono", monospace;
+        flex-shrink: 0; transition: all 0.3s;
+      }
+      .step-v.active .step-v-num { background: var(--ac); border-color: var(--ac); color: #fff; }
+      .step-v.done   .step-v-num { background: var(--g);  border-color: var(--g);  color: #fff; }
+      .step-v-lbl { font-size: 11px; font-weight: 500; }
+      .step-v-sub { font-size: 9px; color: var(--t3); margin-top: 1px; }
+      .step-v.active .step-v-lbl { color: var(--ac2); }
+      .step-v.done   .step-v-lbl { color: var(--g); }
+      .step-v-spin {
+        margin-left: auto;
+        width: 13px; height: 13px;
+        border: 2px solid rgba(59,130,246,0.2);
+        border-top-color: var(--ac);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        display: none; flex-shrink: 0;
+      }
+      .step-v.active .step-v-spin { display: block; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* Progress bar */
+      .sb-prog-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+      .sb-prog-lbl { font-size: 9px; color: var(--t3); font-weight: 500; }
+      .sb-pct { font-family: "JetBrains Mono", monospace; font-size: 15px; font-weight: 700; color: var(--ac2); }
+      .pbar-wrap { height: 4px; background: var(--s2); border-radius: 2px; overflow: hidden; margin-bottom: 5px; }
+      .pbar {
+        height: 100%; width: 0%; border-radius: 2px;
+        background: linear-gradient(90deg, var(--ac3), var(--ac), var(--cy));
+        background-size: 200% 100%;
+        animation: shimmer 2s linear infinite; transition: width 0.4s;
+      }
+      .pbar.done { background: linear-gradient(90deg, var(--g2), var(--g)); animation: none; }
+      @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+      .pdetail { font-family: "JetBrains Mono", monospace; font-size: 9px; color: var(--t3); }
+
+      /* Log */
+      .logbox {
+        margin-top: 9px; background: var(--bg); border: 1px solid var(--b1);
+        border-radius: 7px; max-height: 130px; overflow-y: auto;
+        padding: 9px; font-family: "JetBrains Mono", monospace;
+        font-size: 9.5px; line-height: 1.7;
+      }
+      .logbox::-webkit-scrollbar { width: 3px; }
+      .logbox::-webkit-scrollbar-thumb { background: var(--b1); border-radius: 2px; }
+      .ll { color: var(--t3); }
+      .ll .tm { opacity: 0.5; margin-right: 5px; }
+      .m-katna  { color: var(--or); }
+      .m-yolo   { color: var(--ac2); }
+      .m-enhance{ color: var(--pu); }
+      .m-ocr    { color: var(--cy); }
+      .m-done   { color: var(--g); }
+      .m-error  { color: var(--r); }
+
+      /* Small buttons */
+      .btn-s {
+        padding: 6px 11px; border-radius: 7px;
+        background: var(--s2); border: 1px solid var(--b1);
+        color: var(--t1); font-family: inherit; font-size: 11px; font-weight: 500;
+        cursor: pointer; transition: all 0.2s;
+        display: inline-flex; align-items: center; gap: 5px;
+      }
+      .btn-s:hover { border-color: var(--ac); background: var(--s3); }
+      .btn-s svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+      /* ═══════════════════ MAIN PANEL ═══════════════════ */
+      .main-panel {
+        height: 100vh;
+        overflow-y: auto;
+        background: var(--bg);
+        position: relative;
+      }
+      .main-panel::-webkit-scrollbar { width: 4px; }
+      .main-panel::-webkit-scrollbar-thumb { background: var(--b1); border-radius: 2px; }
+
+      /* Idle view */
+      .idle-view {
+        height: 100%;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .idle-hero { text-align: center; padding: 32px; }
+      .idle-icon { font-size: 60px; margin-bottom: 18px; }
+      .idle-hero h2 { font-size: 22px; font-weight: 700; color: var(--t2); margin-bottom: 7px; }
+      .idle-hero p  { font-size: 13px; color: var(--t3); }
+      .idle-flow {
+        display: flex; align-items: center; gap: 14px;
+        justify-content: center; margin-top: 30px; flex-wrap: wrap;
+      }
+      .idle-step {
+        display: flex; flex-direction: column; align-items: center; gap: 5px;
+        font-size: 10px; color: var(--t3);
+      }
+      .idle-step .is-ico {
+        width: 42px; height: 42px; border-radius: 11px; font-size: 20px;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--s1); border: 1px solid var(--b1);
+      }
+      .idle-arrow { color: var(--b2); font-size: 18px; margin-bottom: 14px; }
+
+      /* ═══════════════════ LIVE VIEW ═══════════════════ */
+      .live-view {
+        display: none;
+        flex-direction: column;
+        height: 100vh;
+        padding: 16px;
+        gap: 10px;
+      }
+      .live-view.show { display: flex; }
+
+      .live-hdr {
+        display: flex; align-items: center; gap: 10px;
+        flex-shrink: 0;
+      }
+      .live-hdr h2 { font-size: 15px; font-weight: 700; }
+      .live-badge {
+        display: inline-flex; align-items: center; gap: 5px;
+        background: var(--rbg); border: 1px solid rgba(239,68,68,0.3);
+        color: var(--r); padding: 3px 9px; border-radius: 20px;
+        font-size: 9px; font-weight: 700; letter-spacing: 0.5px;
+      }
+      .live-badge .ld {
+        width: 5px; height: 5px; background: var(--r);
+        border-radius: 50%; animation: blink 0.8s infinite;
+      }
+      .live-info {
+        margin-left: auto;
+        font-size: 10px; color: var(--t3);
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      /* Frame display */
+      .live-frame-wrap {
+        position: relative;
+        background: #000;
+        border-radius: var(--rd2);
+        border: 1px solid var(--b1);
+        overflow: hidden;
+        flex: 1;
+        min-height: 0;
+        transition: border-color 0.3s, box-shadow 0.3s;
+      }
+      .live-frame-wrap.detecting {
+        border-color: rgba(59,130,246,0.45);
+        box-shadow: 0 0 0 1px rgba(59,130,246,0.15), 0 0 40px rgba(59,130,246,0.06);
+      }
+
+      /* Crossfade images */
+      #liveImgA, #liveImgB {
+        position: absolute; inset: 0;
+        width: 100%; height: 100%;
+        object-fit: contain;
+        transition: opacity 0.22s ease;
+        opacity: 0;
+      }
+
+      /* Placeholder */
+      .live-placeholder {
+        position: absolute; inset: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 14px; color: var(--t3); font-size: 12px;
+      }
+      .scan-bar {
+        width: 180px; height: 2px;
+        background: linear-gradient(90deg, transparent, var(--ac), transparent);
+        animation: scanAnim 2s ease-in-out infinite;
+      }
+      @keyframes scanAnim {
+        0%   { transform: translateX(-90px); opacity: 0; }
+        30%  { opacity: 1; }
+        70%  { opacity: 1; }
+        100% { transform: translateX(90px); opacity: 0; }
+      }
+
+      /* Scan line overlay during detection */
+      .live-scanline {
+        position: absolute; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg, transparent, rgba(59,130,246,0.6), transparent);
+        animation: scanDown 2.5s linear infinite;
+        z-index: 6; opacity: 0; pointer-events: none;
+        transition: opacity 0.4s;
+      }
+      .live-frame-wrap.detecting .live-scanline { opacity: 1; }
+      @keyframes scanDown { 0%{top:0%} 100%{top:100%} }
+
+      /* Corner badges */
+      .live-corner {
+        position: absolute; top: 10px; left: 10px; z-index: 8;
+        background: rgba(0,0,0,0.72); backdrop-filter: blur(8px);
+        border: 1px solid rgba(59,130,246,0.35);
+        color: var(--ac2); padding: 4px 10px; border-radius: 6px;
+        font-size: 9px; font-weight: 700; font-family: "JetBrains Mono", monospace;
+        display: none; transition: color 0.3s;
+      }
+      .live-corner.show { display: block; }
+      .live-framecount {
+        position: absolute; top: 10px; right: 10px; z-index: 8;
+        background: rgba(0,0,0,0.72); backdrop-filter: blur(8px);
+        color: var(--t2); padding: 4px 10px; border-radius: 6px;
+        font-size: 9px; font-family: "JetBrains Mono", monospace;
+        display: none;
+      }
+      .live-framecount.show { display: block; }
+
+      /* Scanline overlay (CRT effect) */
+      .live-frame-wrap::after {
+        content: '';
+        position: absolute; inset: 0;
+        background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.025) 2px, rgba(0,0,0,0.025) 4px);
+        pointer-events: none; z-index: 7;
+      }
+
+      /* Thumbnail strip */
+      .thumb-strip {
+        display: flex; gap: 5px;
+        overflow-x: auto; padding-bottom: 2px;
+        flex-shrink: 0; min-height: 60px;
+      }
+      .thumb-strip::-webkit-scrollbar { height: 3px; }
+      .thumb-strip::-webkit-scrollbar-thumb { background: var(--b1); border-radius: 2px; }
+      .thumb-item {
+        width: 80px; height: 56px; border-radius: 6px;
+        border: 1px solid var(--b1); overflow: hidden;
+        cursor: pointer; transition: all 0.2s; flex-shrink: 0;
+        background: var(--bg2); position: relative;
+      }
+      .thumb-item:hover { border-color: var(--ac); transform: scale(1.06); }
+      .thumb-item.latest { border-color: var(--ac); box-shadow: 0 0 0 2px rgba(59,130,246,0.28); }
+      .thumb-item img { width: 100%; height: 100%; object-fit: cover; }
+      .thumb-num {
+        position: absolute; bottom: 2px; right: 2px;
+        background: rgba(0,0,0,0.72); color: var(--t2);
+        font-size: 8px; padding: 1px 4px; border-radius: 3px;
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      /* ═══════════════════ RESULTS ═══════════════════ */
+      .res-section { display: none; padding: 18px; }
+      .res-section.show { display: block; }
+
+      .res-top {
+        display: flex; align-items: center;
+        justify-content: space-between; margin-bottom: 14px;
+      }
+      .res-top h2 { font-size: 18px; font-weight: 700; }
+      .res-acts { display: flex; gap: 6px; }
+
+      /* 2-col media grid */
+      .media-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+      .media-panel { background: var(--s1); border: 1px solid var(--b1); border-radius: var(--rd2); overflow: hidden; }
+      .mp-head {
+        padding: 10px 14px; border-bottom: 1px solid var(--b1);
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .mp-head h3 { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+      .mp-ico { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+      .mp-body { padding: 12px; }
+      .mp-body video { width: 100%; border-radius: 7px; background: #000; }
+
+      /* Gallery */
+      .gallery { display: flex; gap: 6px; flex-wrap: wrap; }
+      .gal-thumb {
+        width: calc(33.33% - 4px); aspect-ratio: 4/3;
+        border-radius: 6px; border: 1px solid var(--b1);
+        overflow: hidden; cursor: pointer; transition: all 0.2s;
+        background: var(--bg2); position: relative;
+      }
+      .gal-thumb:hover { border-color: var(--ac); transform: scale(1.03); }
+      .gal-thumb img { width: 100%; height: 100%; object-fit: cover; }
+      .gal-thumb .badge {
+        position: absolute; bottom: 3px; right: 3px;
+        background: rgba(0,0,0,0.72); color: var(--t2);
+        font-size: 8px; padding: 1px 4px; border-radius: 3px;
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      /* Stats */
+      .stats { display: grid; grid-template-columns: repeat(5,1fr); gap: 9px; margin-bottom: 16px; }
+      .st { background: var(--s1); border: 1px solid var(--b1); border-radius: var(--rd); padding: 12px; transition: all 0.3s; }
+      .st:hover { transform: translateY(-2px); border-color: var(--b2); }
+      .st .sl { font-size: 8px; color: var(--t3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px; }
+      .st .sv { font-size: 19px; font-weight: 800; font-family: "JetBrains Mono", monospace; }
+      .st .ss { font-size: 8px; color: var(--t3); margin-top: 2px; }
+      .st:nth-child(1) .sv { color: var(--or); }
+      .st:nth-child(2) .sv { color: var(--ac2); }
+      .st:nth-child(3) .sv { color: var(--pu); }
+      .st:nth-child(4) .sv { color: var(--g); }
+      .st:nth-child(5) .sv { color: var(--cy); }
+
+      /* Tabs */
+      .tabs {
+        display: flex; gap: 3px; margin-bottom: 14px;
+        background: var(--bg2); border-radius: 9px; padding: 3px;
+        border: 1px solid var(--b1);
+      }
+      .tab {
+        flex: 1; padding: 7px; border: none; border-radius: 7px;
+        background: transparent; color: var(--t3); font-family: inherit;
+        font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.2s;
+      }
+      .tab.on { background: var(--s2); color: var(--t1); }
+      .tab:hover:not(.on) { color: var(--t2); }
+      .tab-body { display: none; }
+      .tab-body.on { display: block; }
+
+      /* Object cards */
+      .ocard { background: var(--s1); border: 1px solid var(--b1); border-radius: var(--rd2); margin-bottom: 10px; overflow: hidden; transition: all 0.3s; }
+      .ocard:hover { border-color: var(--b2); }
+      .ocard .oh { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; cursor: pointer; transition: background 0.2s; }
+      .ocard .oh:hover { background: var(--s2); }
+      .ocard .ob { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, var(--ac3), var(--ac)); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: #fff; font-family: "JetBrains Mono", monospace; flex-shrink: 0; }
+      .ocard .ot { display: flex; align-items: center; gap: 9px; }
+      .ocard .ot h3 { font-size: 12px; font-weight: 600; }
+      .ocard .ot .om { font-size: 9px; color: var(--t3); margin-top: 1px; }
+      .ocard .os { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--t2); }
+      .ocard .obody { display: none; padding: 0 16px 16px; border-top: 1px solid var(--b1); }
+      .ocard.open .obody { display: block; }
+      .ocard.open .chev { transform: rotate(180deg); }
+      .chev { transition: transform 0.3s; color: var(--t3); }
+
+      .crop-row { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 0; border-bottom: 1px solid rgba(40,54,84,0.5); }
+      .crop-row h4 { width: 100%; font-size: 9px; color: var(--t3); text-transform: uppercase; letter-spacing: 0.7px; font-weight: 600; margin-bottom: 3px; }
+      .crop-th { width: 88px; height: 66px; border-radius: 5px; border: 1px solid var(--b1); overflow: hidden; cursor: pointer; transition: all 0.2s; background: var(--bg2); }
+      .crop-th:hover { border-color: var(--ac); transform: scale(1.05); }
+      .crop-th img { width: 100%; height: 100%; object-fit: cover; }
+
+      /* OCR table */
+      .otbl { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+      .otbl th { text-align: left; padding: 5px 9px; font-size: 8px; color: var(--t3); text-transform: uppercase; letter-spacing: 0.7px; border-bottom: 1px solid var(--b1); font-weight: 600; }
+      .otbl td { padding: 6px 9px; border-bottom: 1px solid rgba(40,54,84,0.3); vertical-align: middle; }
+      .otbl tr:last-child td { border-bottom: none; }
+      .cbar { width: 55px; height: 4px; background: var(--bg2); border-radius: 2px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 5px; }
+      .cbar-f { height: 100%; border-radius: 2px; }
+      .c-hi { background: var(--g); } .c-md { background: var(--y); } .c-lo { background: var(--r); }
+      .rot-b { display: inline-block; padding: 1px 5px; border-radius: 3px; font-family: "JetBrains Mono", monospace; font-size: 9px; background: var(--s3); color: var(--t3); }
+      .tcell { font-family: "JetBrains Mono", monospace; font-size: 11px; word-break: break-all; }
+      .ftb { margin-top: 10px; padding: 11px; background: var(--bg); border: 1px solid var(--b1); border-radius: 7px; }
+      .ftb h4 { font-size: 8px; color: var(--t3); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 7px; font-weight: 600; }
+      .ftb pre { font-family: "JetBrains Mono", monospace; font-size: 11px; line-height: 1.7; color: var(--t2); white-space: pre-wrap; word-break: break-word; }
+
+      /* Keyframes section in results */
+      .kf-sec { margin-bottom: 16px; }
+      .kf-sec-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
+      .kf-sec-hdr h3 { font-size: 13px; font-weight: 600; }
+
+      /* JSON box */
+      .json-box { background: var(--bg); border: 1px solid var(--b1); border-radius: 9px; padding: 14px; max-height: 500px; overflow: auto; font-family: "JetBrains Mono", monospace; font-size: 10px; line-height: 1.7; color: var(--t2); white-space: pre-wrap; }
+      .json-box::-webkit-scrollbar { width: 3px; }
+      .json-box::-webkit-scrollbar-thumb { background: var(--b1); border-radius: 2px; }
+
+      /* Lightbox */
+      .lb { display: none; position: fixed; inset: 0; z-index: 999; background: rgba(0,0,0,0.88); backdrop-filter: blur(10px); align-items: center; justify-content: center; cursor: pointer; padding: 20px; }
+      .lb.show { display: flex; }
+      .lb img { max-width: 90vw; max-height: 90vh; border-radius: 10px; box-shadow: 0 8px 40px rgba(0,0,0,0.5); }
+
+      @media (max-width: 860px) {
+        .app-shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto; }
+        .sidebar { height: auto; }
+        .main-panel { height: calc(100vh - 400px); }
+        .media-grid { grid-template-columns: 1fr; }
+        .stats { grid-template-columns: repeat(3,1fr); }
+        .live-view { height: calc(100vh - 400px); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+
+      <!-- ═══════════════════════════════ SIDEBAR ═══════════════════════════════ -->
+      <aside class="sidebar">
+        <!-- Brand -->
+        <div class="sb-brand">
+          <div class="sb-logo">⚡</div>
+          <div>
+            <div class="sb-name">Warehouse OCR</div>
+            <div class="sb-ver">Pipeline V7</div>
+          </div>
+        </div>
+        <div class="sb-pill" style="margin-bottom:10px">
+          <div class="dot"></div>
+          Katna · YOLO · NAFNet · OCR
+        </div>
+
+        <!-- Upload -->
+        <div class="sb-sec" id="uploadSec">
+          <div class="sb-sec-lbl">Video Input</div>
+          <div class="drop-mini" id="dropZone" onclick="document.getElementById('fi').click()">
+            <div class="drop-mini-ico">
+              <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="drop-mini-txt">
+              <div class="dt">Drop video here</div>
+              <div class="ds">MP4, AVI, MOV, MKV</div>
+            </div>
+          </div>
+          <input type="file" id="fi" accept=".mp4,.avi,.mov,.mkv,.wmv,.flv" />
+
+          <div class="fprev" id="fprev">
+            <div class="fprev-ico">
+              <svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            </div>
+            <div class="fprev-info">
+              <div class="name" id="fn"></div>
+              <div class="size" id="fs"></div>
+            </div>
+            <button class="fprev-rm" onclick="clearFile()">
+              <svg width="12" height="12" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <div class="set-grid-2">
+            <div class="set-group">
+              <label>Device</label>
+              <select id="sDevice">
+                <option value="cpu">CPU</option>
+                <option value="cuda">CUDA (GPU)</option>
+              </select>
+            </div>
+            <div class="set-group">
+              <label>Enhancement</label>
+              <select id="sEnhance">
+                <option value="nafnet">NAFNet</option>
+                <option value="adaptive">Adaptive</option>
+                <option value="none">None</option>
+              </select>
+            </div>
+            <div class="set-group">
+              <label>Upscale</label>
+              <select id="sUpscale">
+                <option value="2">2×</option>
+                <option value="4">4×</option>
+                <option value="1">1× (Off)</option>
+              </select>
+            </div>
+            <div class="set-group">
+              <label>Keyframes</label>
+              <input type="number" id="sKF" value="15" min="3" max="60" />
+            </div>
+          </div>
+          <button class="btn-start" id="startBtn" onclick="startPipeline()">▶ Start Pipeline</button>
+        </div>
+
+        <!-- Step indicators -->
+        <div class="sb-sec prog-section" id="progSec">
+          <div class="sb-sec-lbl">Pipeline Steps</div>
+          <div class="steps-vert">
+            <div class="step-v" id="sKatna">
+              <div class="step-v-num">1</div>
+              <div>
+                <div class="step-v-lbl">Katna Keyframes</div>
+                <div class="step-v-sub">Frame extraction</div>
+              </div>
+              <div class="step-v-spin"></div>
+            </div>
+            <div class="step-v" id="sYolo">
+              <div class="step-v-num">2</div>
+              <div>
+                <div class="step-v-lbl">YOLO Detection</div>
+                <div class="step-v-sub">Object detection</div>
+              </div>
+              <div class="step-v-spin"></div>
+            </div>
+            <div class="step-v" id="sEnh">
+              <div class="step-v-num">3</div>
+              <div>
+                <div class="step-v-lbl">NAFNet Enhance</div>
+                <div class="step-v-sub">Image quality boost</div>
+              </div>
+              <div class="step-v-spin"></div>
+            </div>
+            <div class="step-v" id="sOcr">
+              <div class="step-v-num">4</div>
+              <div>
+                <div class="step-v-lbl">OCR Extract</div>
+                <div class="step-v-sub">Text recognition</div>
+              </div>
+              <div class="step-v-spin"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress bar + log -->
+        <div class="sb-sec prog-section" id="pbarSec">
+          <div class="sb-prog-row">
+            <span class="sb-prog-lbl">Progress</span>
+            <span class="sb-pct" id="pPct">0%</span>
+          </div>
+          <div class="pbar-wrap"><div class="pbar" id="pBar"></div></div>
+          <div class="pdetail" id="pDetail">Ready</div>
+          <div class="logbox" id="logBox"></div>
+        </div>
+
+        <!-- New job button (shown after done) -->
+        <div class="sb-sec" id="newJobSec" style="display:none">
+          <button class="btn-start show" onclick="resetAll()"
+            style="background:linear-gradient(135deg,var(--g2),var(--g));box-shadow:0 3px 10px rgba(34,197,94,0.28)">
+            + New Pipeline
+          </button>
+          <button class="btn-s" onclick="dlJson()" style="width:100%;margin-top:7px;justify-content:center">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download JSON
+          </button>
+        </div>
+      </aside>
+
+      <!-- ═══════════════════════════════ MAIN PANEL ═══════════════════════════════ -->
+      <main class="main-panel" id="mainPanel">
+
+        <!-- Idle welcome -->
+        <div id="idleView" class="idle-view">
+          <div class="idle-hero">
+            <div class="idle-icon">🎬</div>
+            <h2>Drop a video to begin</h2>
+            <p>Upload using the sidebar — results appear here in real-time</p>
+            <div class="idle-flow">
+              <div class="idle-step"><div class="is-ico">🎞</div><span>Katna<br>Keyframes</span></div>
+              <div class="idle-arrow">→</div>
+              <div class="idle-step"><div class="is-ico">🎯</div><span>YOLO<br>Detect</span></div>
+              <div class="idle-arrow">→</div>
+              <div class="idle-step"><div class="is-ico">✨</div><span>NAFNet<br>Enhance</span></div>
+              <div class="idle-arrow">→</div>
+              <div class="idle-step"><div class="is-ico">📝</div><span>OCR<br>Extract</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live detection view -->
+        <div id="liveView" class="live-view">
+          <div class="live-hdr">
+            <h2>Live Detection</h2>
+            <div class="live-badge" id="liveBadge"><div class="ld"></div><span id="liveBadgeTxt">LIVE</span></div>
+            <div class="live-info" id="liveInfo">Initializing...</div>
+          </div>
+
+          <div class="live-frame-wrap" id="liveWrap">
+            <img id="liveImgA" src="" alt="" />
+            <img id="liveImgB" src="" alt="" />
+            <div class="live-placeholder" id="livePlaceholder">
+              <div class="scan-bar"></div>
+              <span>Waiting for first frame...</span>
+            </div>
+            <div class="live-scanline"></div>
+            <div class="live-corner" id="liveCorner">● KATNA EXTRACTING</div>
+            <div class="live-framecount" id="liveFrameCount"></div>
+          </div>
+
+          <div class="thumb-strip" id="thumbStrip"></div>
+        </div>
+
+        <!-- Results -->
+        <div id="resSec" class="res-section">
+          <div class="res-top">
+            <h2>Results</h2>
+            <div class="res-acts">
+              <button class="btn-s" onclick="switchTab('json', null)">
+                <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                JSON
+              </button>
+            </div>
+          </div>
+
+          <div class="media-grid" id="mediaGrid">
+            <div class="media-panel">
+              <div class="mp-head">
+                <h3><span class="mp-ico" style="background:var(--ac3)">🎬</span>Uploaded Video</h3>
+              </div>
+              <div class="mp-body"><video id="vidPlayer" controls></video></div>
+            </div>
+            <div class="media-panel">
+              <div class="mp-head">
+                <h3><span class="mp-ico" style="background:var(--pu)">🎯</span>YOLO Detections</h3>
+                <span id="annCount" style="font-size:10px;color:var(--t3)"></span>
+              </div>
+              <div class="mp-body"><div class="gallery" id="annGal"></div></div>
+            </div>
+          </div>
+
+          <div class="kf-sec" id="kfCard" style="display:none">
+            <div class="kf-sec-hdr">
+              <h3>📸 Katna Keyframes</h3>
+              <span id="kfCount" style="font-size:10px;color:var(--t3)"></span>
+            </div>
+            <div class="gallery" id="kfGal"></div>
+          </div>
+
+          <div class="stats" id="statsGrid"></div>
+
+          <div class="tabs">
+            <button class="tab on" onclick="switchTab('objects',this)">Objects</button>
+            <button class="tab" onclick="switchTab('keyframes',this)">Keyframes</button>
+            <button class="tab" onclick="switchTab('detections',this)">Detections</button>
+            <button class="tab" onclick="switchTab('enhanced',this)">Enhanced</button>
+            <button class="tab" onclick="switchTab('json',this)">Raw JSON</button>
+          </div>
+          <div class="tab-body on" id="tbObjects"></div>
+          <div class="tab-body" id="tbKeyframes"></div>
+          <div class="tab-body" id="tbDetections"></div>
+          <div class="tab-body" id="tbEnhanced"></div>
+          <div class="tab-body" id="tbJson"><div class="json-box" id="jsonBox"></div></div>
+        </div>
+
+      </main>
+    </div>
+
+    <div class="lb" id="lb" onclick="this.classList.remove('show')"><img id="lbImg" /></div>
+
+    <script>
+      let selFile = null, jobId = null, result = null, ws = null;
+      const $ = id => document.getElementById(id);
+
+      // Live frame state
+      let liveFrames = [];
+      let showingA = true;
+      // Frame queue — so frames that arrive all at once still animate one-by-one
+      let liveFrameQueue = [];
+      let liveFrameRunning = false;
+
+      // ── Drag/drop ──
+      const dz = $('dropZone');
+      ['dragenter','dragover'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.add('dragging'); }));
+      ['dragleave','drop'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.remove('dragging'); }));
+      dz.addEventListener('drop', ev => { if (ev.dataTransfer.files.length) pickFile(ev.dataTransfer.files[0]); });
+      $('fi').addEventListener('change', ev => { if (ev.target.files.length) pickFile(ev.target.files[0]); });
+
+      function pickFile(f) {
+        const ok = ['.mp4','.avi','.mov','.mkv','.wmv','.flv'];
+        if (!ok.includes('.' + f.name.split('.').pop().toLowerCase())) { alert('Use: ' + ok.join(', ')); return; }
+        selFile = f;
+        $('fn').textContent = f.name;
+        $('fs').textContent = (f.size / 1048576).toFixed(1) + ' MB';
+        $('fprev').classList.add('show');
+        $('startBtn').classList.add('show');
+      }
+
+      function clearFile() {
+        selFile = null;
+        $('fprev').classList.remove('show');
+        $('startBtn').classList.remove('show');
+        $('fi').value = '';
+      }
+
+      async function startPipeline() {
+        if (!selFile) return;
+        $('startBtn').disabled = true;
+        $('startBtn').textContent = '⏳ Uploading...';
+
+        document.querySelectorAll('.prog-section').forEach(e => e.classList.add('show'));
+        $('logBox').innerHTML = '';
+
+        showLiveView();
+
+        const fd = new FormData();
+        fd.append('file', selFile);
+        fd.append('device', $('sDevice').value);
+        fd.append('enhance', $('sEnhance').value);
+        fd.append('upscale', $('sUpscale').value);
+        fd.append('num_keyframes', $('sKF').value);
+
+        try {
+          const r = await fetch('/api/upload', { method: 'POST', body: fd });
+          const d = await r.json();
+          jobId = d.job_id;
+          $('startBtn').textContent = '⏳ Processing...';
+          addLog('init', `Job ${jobId} started — ${selFile.name}`);
+          connectWS(jobId);
+        } catch(e) {
+          alert('Upload failed');
+          $('startBtn').disabled = false;
+          $('startBtn').textContent = '▶ Start Pipeline';
+          showIdleView();
+        }
+      }
+
+      // ── View switching ──
+      function showIdleView() {
+        $('idleView').style.display = '';
+        $('liveView').classList.remove('show');
+        $('resSec').classList.remove('show');
+      }
+      function showLiveView() {
+        $('idleView').style.display = 'none';
+        $('liveView').classList.add('show');
+        $('resSec').classList.remove('show');
+        $('mainPanel').style.overflow = 'hidden';
+      }
+      function showResults() {
+        $('idleView').style.display = 'none';
+        $('liveView').classList.remove('show');
+        $('resSec').classList.add('show');
+        $('mainPanel').style.overflow = 'auto';
+      }
+
+      // ── WebSocket ──
+      function connectWS(id) {
+        const p = location.protocol === 'https:' ? 'wss' : 'ws';
+        ws = new WebSocket(`${p}://${location.host}/ws/${id}`);
+        ws.onmessage = ev => {
+          const d = JSON.parse(ev.data);
+          if (d.step === 'live_frame') { pushLiveFrame(d); return; }
+          updateProg(d);
+          addLog(d.step, d.detail);
+          if (d.final) { d.step === 'done' ? fetchResult(id) : showErr(d.detail); }
+        };
+        ws.onerror = () => pollFallback(id);
+      }
+
+      function pollFallback(id) {
+        const iv = setInterval(async () => {
+          try {
+            const r = await fetch(`/api/status/${id}`);
+            const d = await r.json();
+            updateProg(d);
+            if (d.status === 'done') { clearInterval(iv); fetchResult(id); }
+            if (d.status === 'error') { clearInterval(iv); showErr(d.error); }
+          } catch {}
+        }, 800);
+      }
+
+      // ── Live frame handling ──
+      function pushLiveFrame(d) {
+        liveFrameQueue.push(d);
+        if (!liveFrameRunning) drainFrameQueue();
+      }
+
+      async function drainFrameQueue() {
+        liveFrameRunning = true;
+        while (liveFrameQueue.length > 0) {
+          const d = liveFrameQueue.shift();
+          renderLiveFrame(d);
+          // Spacing: 180ms between frames so even bulk-arrivals feel like a slideshow
+          if (liveFrameQueue.length > 0) await new Promise(r => setTimeout(r, 180));
+        }
+        liveFrameRunning = false;
+      }
+
+      function renderLiveFrame(d) {
+        const { frame_url, frame_num, frame_total, frame_type } = d;
+        liveFrames.push(frame_url);
+
+        // Thumbnail strip
+        const strip = $('thumbStrip');
+        strip.querySelectorAll('.thumb-item.latest').forEach(t => t.classList.remove('latest'));
+        const thumb = document.createElement('div');
+        thumb.className = 'thumb-item latest';
+        const badgeLbl = frame_type === 'yolo' ? 'YOLO' : 'KF';
+        const badgeCol = frame_type === 'yolo' ? '#60a5fa' : '#f97316';
+        thumb.innerHTML = `<img src="${frame_url}" loading="lazy">
+          <div class="thumb-num" style="color:${badgeCol}">${badgeLbl} ${frame_num}</div>`;
+        thumb.onclick = () => openLB(frame_url);
+        strip.appendChild(thumb);
+        strip.scrollLeft = strip.scrollWidth;
+
+        // Crossfade main frame
+        displayLiveFrame(frame_url);
+
+        // Corner badge — colour-coded by step
+        const corner = $('liveCorner');
+        if (frame_type === 'yolo') {
+          corner.textContent = '● YOLO DETECTING';
+          corner.style.color = 'var(--ac2)';
+          corner.style.borderColor = 'rgba(96,165,250,0.4)';
+        } else {
+          corner.textContent = '● KATNA EXTRACTING';
+          corner.style.color = 'var(--or)';
+          corner.style.borderColor = 'rgba(249,115,22,0.4)';
+        }
+
+        // Show all overlays
+        $('livePlaceholder').style.display = 'none';
+        $('liveWrap').classList.add('detecting');
+        corner.classList.add('show');
+        $('liveFrameCount').classList.add('show');
+        $('liveFrameCount').textContent = `${frame_num} / ${frame_total}`;
+        $('liveInfo').textContent = `${frame_type === 'yolo' ? 'YOLO' : 'Katna'} frame ${frame_num}/${frame_total}`;
+      }
+
+      function displayLiveFrame(url) {
+        const imgA = $('liveImgA'), imgB = $('liveImgB');
+        if (liveFrames.length === 1) {
+          imgA.src = url; imgA.style.opacity = '1';
+          imgB.style.opacity = '0';
+          showingA = true;
+        } else if (showingA) {
+          imgB.src = url;
+          imgB.style.opacity = '1';
+          imgA.style.opacity = '0';
+          showingA = false;
+        } else {
+          imgA.src = url;
+          imgA.style.opacity = '1';
+          imgB.style.opacity = '0';
+          showingA = true;
+        }
+      }
+
+      // ── Progress ──
+      const stepNames = ['init','katna','yolo','enhance','ocr','done'];
+      const stepEls   = ['sKatna','sYolo','sEnh','sOcr'];
+      const stepKeys  = ['katna','yolo','enhance','ocr'];
+
+      const cornerLabels = {
+        katna:   { txt: '● KATNA EXTRACTING', col: 'var(--or)' },
+        yolo:    { txt: '● YOLO DETECTING',   col: 'var(--ac2)' },
+        enhance: { txt: '✨ ENHANCING',         col: 'var(--pu)' },
+        ocr:     { txt: '📝 OCR RUNNING',       col: 'var(--cy)' },
+        done:    { txt: '✓ COMPLETE',           col: 'var(--g)' },
+      };
+
+      function updateProg(d) {
+        const p = Math.max(0, Math.min(100, d.progress || 0));
+        $('pBar').style.width = p + '%';
+        $('pPct').textContent = Math.round(p) + '%';
+        $('pDetail').textContent = d.detail || '';
+        if (d.step === 'done') $('pBar').classList.add('done');
+
+        const ci = stepNames.indexOf(d.step);
+        stepEls.forEach((id, i) => {
+          const el = $(id), mi = stepNames.indexOf(stepKeys[i]);
+          el.classList.remove('active','done');
+          if (d.step === 'done') el.classList.add('done');
+          else if (mi < ci) el.classList.add('done');
+          else if (mi === ci || (d.step === 'init' && i === 0)) el.classList.add('active');
+        });
+
+        // Update live corner badge
+        const lbl = cornerLabels[d.step];
+        if (lbl) {
+          const corner = $('liveCorner');
+          corner.textContent = lbl.txt;
+          corner.style.color = lbl.col;
+          corner.style.borderColor = lbl.col.replace('var(--', 'rgba(').replace(')', ',0.35)').replace('var(--ac2)', 'rgba(96,165,250,0.35)').replace('var(--or)', 'rgba(249,115,22,0.35)').replace('var(--pu)', 'rgba(168,85,247,0.35)').replace('var(--cy)', 'rgba(6,182,212,0.35)').replace('var(--g)', 'rgba(34,197,94,0.35)');
+          corner.classList.add('show');
+          $('liveInfo').textContent = d.detail || '';
+        }
+
+        if (d.step === 'done') {
+          $('liveWrap').classList.remove('detecting');
+          const badge = $('liveBadge');
+          badge.style.background = 'var(--gbg)';
+          badge.style.borderColor = 'rgba(34,197,94,0.35)';
+          badge.style.color = 'var(--g)';
+          $('liveBadgeTxt').textContent = 'COMPLETE';
+          badge.querySelector('.ld').style.background = 'var(--g)';
+          badge.querySelector('.ld').style.animation = 'none';
+          badge.querySelector('.ld').style.opacity = '1';
+        }
+      }
+
+      function addLog(step, msg) {
+        if (!msg) return;
+        const l = $('logBox');
+        const t = new Date().toLocaleTimeString('en', { hour12: false });
+        const c = { error:'m-error', done:'m-done', katna:'m-katna', yolo:'m-yolo', enhance:'m-enhance', ocr:'m-ocr' }[step] || '';
+        l.innerHTML += `<div class="ll"><span class="tm">${t}</span><span class="${c}">${esc(msg)}</span></div>`;
+        l.scrollTop = l.scrollHeight;
+      }
+      function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+      async function fetchResult(id) {
+        try {
+          const r = await fetch(`/api/result/${id}`);
+          result = await r.json();
+          render(result);
+        } catch(e) { addLog('error', 'Fetch failed: ' + e.message); }
+      }
+      function showErr(m) {
+        $('startBtn').disabled = false;
+        $('startBtn').textContent = '▶ Retry';
+        addLog('error', m);
+      }
+
+      function openLB(src) { $('lbImg').src = src; $('lb').classList.add('show'); }
+
+      // ── Render results ──
+      async function render(data) {
+        // Brief pause on live view showing "complete", then switch to results
+        setTimeout(() => {
+          showResults();
+          $('newJobSec').style.display = 'block';
+          $('startBtn').style.display = 'none';
+        }, 1800);
+
+        const m = data.metadata;
+        $('vidPlayer').src = `/api/video/${jobId}`;
+
+        // Annotated frames
+        const annData = await fetch(`/api/browse/${jobId}/annotated_frames`).then(r => r.json()).catch(() => ({ files: [] }));
+        $('annCount').textContent = annData.files.length + ' frames';
+        $('annGal').innerHTML = annData.files.map(f =>
+          `<div class="gal-thumb" onclick="openLB('${f.url}')"><img src="${f.url}" loading="lazy"><div class="badge">YOLO</div></div>`
+        ).join('');
+
+        // Keyframes
+        const kfData = await fetch(`/api/browse/${jobId}/keyframes`).then(r => r.json()).catch(() => ({ files: [] }));
+        if (kfData.files.length) {
+          $('kfCard').style.display = 'block';
+          $('kfCount').textContent = kfData.files.length + ' keyframes';
+          $('kfGal').innerHTML = kfData.files.map(f =>
+            `<div class="gal-thumb" onclick="openLB('${f.url}')"><img src="${f.url}" loading="lazy"><div class="badge">KF</div></div>`
+          ).join('');
+        }
+
+        // Stats
+        const tl = data.objects.reduce((s, o) => s + o.total_lines, 0);
+        const confs = data.objects.flatMap(o => o.lines.map(l => l.confidence));
+        const avg = confs.length ? confs.reduce((a, b) => a + b, 0) / confs.length : 0;
+        const st = m.step_times || {};
+        $('statsGrid').innerHTML = `
+          <div class="st"><div class="sl">Keyframes</div><div class="sv">${m.total_keyframes}</div><div class="ss">${st.katna_keyframes||0}s Katna</div></div>
+          <div class="st"><div class="sl">Objects</div><div class="sv">${m.total_objects}</div><div class="ss">${st.yolo_detection||0}s YOLO</div></div>
+          <div class="st"><div class="sl">Enhancement</div><div class="sv">${m.enhancement}</div><div class="ss">${st.enhancement||0}s · ${m.upscale}×</div></div>
+          <div class="st"><div class="sl">Text Lines</div><div class="sv">${tl}</div><div class="ss">${(avg*100).toFixed(0)}% avg conf</div></div>
+          <div class="st"><div class="sl">Total Time</div><div class="sv">${m.time_seconds}s</div><div class="ss">${m.device}</div></div>`;
+
+        // Objects tab
+        let cards = '';
+        data.objects.forEach((obj, oi) => {
+          let rows = '';
+          obj.lines.forEach(l => {
+            const p = (l.confidence * 100).toFixed(0);
+            const c = l.confidence >= 0.7 ? 'c-hi' : l.confidence >= 0.4 ? 'c-md' : 'c-lo';
+            rows += `<tr><td class="tcell">${esc(l.text)}</td><td><div class="cbar"><div class="cbar-f ${c}" style="width:${p}%"></div></div>${p}%</td><td><span class="rot-b">${l.rotation}°</span></td></tr>`;
+          });
+          cards += `<div class="ocard" id="oc${oi}">
+            <div class="oh" onclick="togCard(${oi},'${esc(obj.object_id)}')">
+              <div class="ot">
+                <div class="ob">${oi+1}</div>
+                <div><h3>${esc(obj.object_id)}</h3><div class="om">${obj.frames_analyzed} frames</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div class="os"><span>📝 ${obj.total_lines} lines</span></div>
+                <svg class="chev" width="15" height="15" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+            </div>
+            <div class="obody">
+              <div id="cr${oi}"></div>
+              ${obj.lines.length
+                ? `<table class="otbl"><thead><tr><th>Text</th><th>Confidence</th><th>Rotation</th></tr></thead><tbody>${rows}</tbody></table>`
+                : '<p style="color:var(--t3);padding:9px 0;font-size:12px">No text found</p>'}
+              ${obj.full_text ? `<div class="ftb"><h4>Combined Text</h4><pre>${esc(obj.full_text)}</pre></div>` : ''}
+            </div>
+          </div>`;
+        });
+        $('tbObjects').innerHTML = cards;
+
+        // Keyframes tab
+        $('tbKeyframes').innerHTML = kfData.files.length
+          ? `<div class="gallery">${kfData.files.map(f => `<div class="gal-thumb" onclick="openLB('${f.url}')"><img src="${f.url}" loading="lazy"></div>`).join('')}</div>`
+          : '<p style="color:var(--t3)">No keyframes</p>';
+
+        // Detections tab
+        const detData = await fetch(`/api/browse/${jobId}/detected_objects`).then(r => r.json()).catch(() => ({ objects: {} }));
+        let detHtml = '';
+        for (const [name, info] of Object.entries(detData.objects || {})) {
+          detHtml += `<div style="margin-bottom:14px"><h4 style="font-size:12px;font-weight:600;margin-bottom:7px">${esc(name)} (${info.count})</h4><div class="gallery">${info.files.map(f => `<div class="gal-thumb" onclick="openLB('${f.url}')"><img src="${f.url}" loading="lazy"></div>`).join('')}</div></div>`;
+        }
+        $('tbDetections').innerHTML = detHtml || '<p style="color:var(--t3)">No detections</p>';
+
+        // Enhanced tab
+        const enhData = await fetch(`/api/browse/${jobId}/enhanced_crops`).then(r => r.json()).catch(() => ({ objects: {} }));
+        let enhHtml = '';
+        for (const [name, info] of Object.entries(enhData.objects || {})) {
+          enhHtml += `<div style="margin-bottom:14px"><h4 style="font-size:12px;font-weight:600;margin-bottom:7px">${esc(name)} (${info.count})</h4><div class="gallery">${info.files.map(f => `<div class="gal-thumb" onclick="openLB('${f.url}')"><img src="${f.url}" loading="lazy"></div>`).join('')}</div></div>`;
+        }
+        $('tbEnhanced').innerHTML = enhHtml || '<p style="color:var(--t3)">No enhanced crops</p>';
+
+        // JSON tab
+        $('jsonBox').textContent = JSON.stringify(data, null, 2);
+      }
+
+      function switchTab(name, btn) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+        document.querySelectorAll('.tab-body').forEach(t => t.classList.remove('on'));
+        if (btn) btn.classList.add('on');
+        else document.querySelectorAll('.tab').forEach(t => { if (t.textContent.toLowerCase().includes(name)) t.classList.add('on'); });
+        const map = { objects:'tbObjects', keyframes:'tbKeyframes', detections:'tbDetections', enhanced:'tbEnhanced', json:'tbJson' };
+        if (map[name]) $(map[name]).classList.add('on');
+      }
+
+      const loadedCr = {};
+      async function togCard(i, name) {
+        const c = $('oc' + i);
+        c.classList.toggle('open');
+        if (c.classList.contains('open') && !loadedCr[i] && jobId) {
+          loadedCr[i] = true;
+          let html = '';
+          for (const folder of ['detected_objects','enhanced_crops']) {
+            try {
+              const d = await fetch(`/api/browse/${jobId}/${folder}`).then(r => r.json());
+              if (d.objects && d.objects[name]) {
+                const o = d.objects[name];
+                const lb = folder === 'detected_objects' ? 'YOLO Crops' : 'Enhanced';
+                html += `<div class="crop-row"><h4>${lb} (${o.count})</h4>${o.files.map(f => `<div class="crop-th" onclick="event.stopPropagation();openLB('${f.url}')"><img src="${f.url}" loading="lazy"></div>`).join('')}</div>`;
+              }
+            } catch {}
+          }
+          $('cr' + i).innerHTML = html || '<p style="color:var(--t3);font-size:11px;padding:6px 0">No images</p>';
+        }
+      }
+
+      function dlJson() {
+        if (!result) return;
+        const b = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(b); a.download = `ocr_${jobId}.json`; a.click();
+      }
+
+      function resetAll() {
+        selFile = null; jobId = null; result = null;
+        if (ws) ws.close();
+        liveFrames = []; showingA = true;
+        liveFrameQueue = []; liveFrameRunning = false;
+
+        // Reset live view
+        const imgA = $('liveImgA'), imgB = $('liveImgB');
+        imgA.src = ''; imgA.style.opacity = '0';
+        imgB.src = ''; imgB.style.opacity = '0';
+        $('livePlaceholder').style.display = '';
+        $('thumbStrip').innerHTML = '';
+        $('liveWrap').classList.remove('detecting');
+        $('liveCorner').classList.remove('show');
+        $('liveFrameCount').classList.remove('show');
+        $('liveInfo').textContent = 'Initializing...';
+
+        // Reset badge
+        const badge = $('liveBadge');
+        badge.style.cssText = '';
+        $('liveBadgeTxt').textContent = 'LIVE';
+        badge.querySelector('.ld').style.cssText = '';
+
+        // Reset sidebar
+        document.querySelectorAll('.prog-section').forEach(e => e.classList.remove('show'));
+        $('newJobSec').style.display = 'none';
+        $('startBtn').style.display = '';
+        $('startBtn').classList.remove('show');
+        $('startBtn').disabled = false;
+        $('startBtn').textContent = '▶ Start Pipeline';
+        $('fprev').classList.remove('show');
+        $('pBar').style.width = '0%';
+        $('pBar').classList.remove('done');
+        $('pPct').textContent = '0%';
+        $('pDetail').textContent = 'Ready';
+        $('fi').value = '';
+        $('logBox').innerHTML = '';
+        $('kfCard').style.display = 'none';
+        stepEls.forEach(id => $(id).classList.remove('active','done'));
+        Object.keys(loadedCr).forEach(k => delete loadedCr[k]);
+
+        showIdleView();
+      }
+    </script>
+  </body>
+</html>
